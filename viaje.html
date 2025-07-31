@@ -114,7 +114,7 @@
     <a href="index.html" class="back-button">Volver a la realidad 🌀</a>
 
     <div class="controls-right">
-        <button id="add-video-button" class="control-button">Añadir Video ➕</button>
+        <button id="add-video-button" class="control-button">Sugerir Video ➕</button>
         <button id="skip-video-button" class="control-button">Saltar Visual ⏭️</button>
         <button id="skip-music-button" class="control-button">Cambiar Música 🎶</button>
     </div>
@@ -256,9 +256,9 @@
 
         skipMusicButton.addEventListener('click', loadNextMusic);
 
-        // --- Lógica para añadir videos ---
+        // --- Lógica para sugerir videos ---
         addVideoButton.addEventListener('click', async () => {
-            const videoUrl = prompt('Pega la URL del video de YouTube que quieres añadir:');
+            const videoUrl = prompt('Pega la URL del video de YouTube que quieres sugerir para el viaje:');
             if (!videoUrl) return; // El usuario canceló
 
             const videoId = getYouTubeID(videoUrl);
@@ -268,13 +268,13 @@
                 return;
             }
 
-            // 1. Filtro de contenido: Validar el título del video antes de añadirlo
+            // 1. Validar el título del video antes de enviarlo como sugerencia
             try {
                 const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`;
                 const response = await fetch(oembedUrl);
                 if (!response.ok) throw new Error('Video no encontrado o privado.');
                 const metadata = await response.json();
-                const title = metadata.title || '';
+                const title = metadata.title || 'Sin título';
 
                 const contentToCheck = `${title.toLowerCase()} ${videoUrl.toLowerCase()}`;
                 const isForbidden = FORBIDDEN_KEYWORDS.some(keyword => contentToCheck.includes(keyword));
@@ -284,29 +284,26 @@
                     return;
                 }
 
-                // 2. Si está limpio, lo enviamos al servidor para guardarlo
-                const saveResponse = await fetch('/api/cosmic-playlist', {
+                // 2. Si está limpio, lo enviamos al servidor como sugerencia
+                const suggestionResponse = await fetch('/api/video-suggestions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ videoId: videoId })
+                    body: JSON.stringify({ videoId: videoId, title: title })
                 });
 
-                if (saveResponse.status === 409) {
-                    alert(await saveResponse.text()); // "Ese video ya está en la playlist."
+                if (!suggestionResponse.ok) {
+                    // El servidor puede responder con 409 (conflicto/duplicado) u otro error
+                    const errorMessage = await suggestionResponse.text();
+                    alert(errorMessage);
                     return;
                 }
 
-                if (!saveResponse.ok) {
-                    throw new Error(`Error del servidor: ${await saveResponse.text()}`);
-                }
-
-                // 3. Si se guarda correctamente, lo añadimos a la lista local y notificamos
-                cosmicTripPlaylist.push(videoId);
-                alert('¡Video añadido a la playlist! 🚀');
+                // 3. Notificar al usuario que su sugerencia fue recibida
+                alert('¡Gracias por tu sugerencia! Será revisada para el próximo viaje cósmico. ✨');
 
             } catch (error) {
-                console.error('Error al validar el video:', error);
-                alert('No se pudo añadir el video. Puede que sea privado, haya sido eliminado o la URL no sea correcta.');
+                console.error('Error al enviar la sugerencia de video:', error);
+                alert('No se pudo enviar la sugerencia. Puede que el video sea privado o la URL no sea correcta.');
             }
         });
 

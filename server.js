@@ -7,6 +7,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const CONTENT_FILE_PATH = path.join(__dirname, 'contentList.json');
 const COSMIC_PLAYLIST_PATH = path.join(__dirname, 'cosmicPlaylist.json');
+const VIDEO_SUGGESTIONS_PATH = path.join(__dirname, 'videoSuggestions.json');
 const FORBIDDEN_KEYWORDS = [
     // English
     'gore',
@@ -150,29 +151,43 @@ app.get('/api/cosmic-playlist', async (req, res) => {
     }
 });
 
-// RUTA POST: Añade un nuevo video a la playlist cósmica
-app.post('/api/cosmic-playlist', async (req, res) => {
+// RUTA POST: Recibe una sugerencia de video para el viaje cósmico
+app.post('/api/video-suggestions', async (req, res) => {
     try {
-        const { videoId } = req.body;
+        const { videoId, title } = req.body;
 
-        if (!videoId) {
-            return res.status(400).send('Falta el ID del video.');
+        if (!videoId || !title) {
+            return res.status(400).send('Faltan datos en la sugerencia del video.');
         }
 
-        const playlist = await readJsonFile(COSMIC_PLAYLIST_PATH);
+        const suggestions = await readJsonFile(VIDEO_SUGGESTIONS_PATH);
+        const cosmicPlaylist = await readJsonFile(COSMIC_PLAYLIST_PATH);
 
-        if (playlist.includes(videoId)) {
-            return res.status(409).send('Ese video ya está en la playlist.');
+        // Verificar si ya existe en la playlist principal o en las sugerencias
+        const isDuplicateInPlaylist = cosmicPlaylist.includes(videoId);
+        const isDuplicateInSuggestions = suggestions.some(s => s.videoId === videoId);
+
+        if (isDuplicateInPlaylist) {
+            return res.status(409).send('¡Ese video ya forma parte del viaje cósmico!');
+        }
+        if (isDuplicateInSuggestions) {
+            return res.status(409).send('Esa sugerencia ya fue enviada. ¡Gracias!');
         }
 
-        playlist.push(videoId);
+        // Añadir la nueva sugerencia
+        const newSuggestion = {
+            videoId,
+            title,
+            suggestedAt: new Date().toISOString()
+        };
+        suggestions.push(newSuggestion);
 
-        await fs.writeFile(COSMIC_PLAYLIST_PATH, JSON.stringify(playlist, null, 2), 'utf-8');
+        await fs.writeFile(VIDEO_SUGGESTIONS_PATH, JSON.stringify(suggestions, null, 2), 'utf-8');
 
-        res.status(201).json({ success: true, videoId });
+        res.status(201).json({ success: true, message: 'Sugerencia recibida.' });
     } catch (error) {
-        console.error('Error al guardar en la playlist cósmica:', error);
-        res.status(500).send('Error interno del servidor al guardar en la playlist.');
+        console.error('Error al guardar la sugerencia de video:', error);
+        res.status(500).send('Error interno del servidor al guardar la sugerencia.');
     }
 });
 
