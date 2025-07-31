@@ -2,12 +2,12 @@
 const express = require('express');
 const fs = require('fs').promises; // Usamos la versión de promesas para async/await
 const path = require('path');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const CONTENT_FILE_PATH = path.join(__dirname, 'contentList.json');
 const COSMIC_PLAYLIST_PATH = path.join(__dirname, 'cosmicPlaylist.json');
-const VIDEO_SUGGESTIONS_PATH = path.join(__dirname, 'videoSuggestions.json');
 const FORBIDDEN_KEYWORDS = [
     // English
     'gore',
@@ -32,24 +32,13 @@ app.use(express.static(__dirname));
 
 // Lee el contenido del archivo JSON. Si no existe, devuelve una lista vacía.
 async function readJsonFile(filePath) {
-    let data;
     try {
-        data = await fs.readFile(filePath, 'utf-8');
-        // --- DETECTOR ACTIVADO ---
-        // Imprimimos el contenido crudo del archivo en los logs para diagnóstico.
-        console.log(`--- [DETECTOR] Leyendo contenido crudo de: ${path.basename(filePath)} ---`);
-        console.log(data);
-        console.log(`--- [DETECTOR] Fin del contenido de: ${path.basename(filePath)} ---`);
-
+        const data = await fs.readFile(filePath, 'utf-8');
         return JSON.parse(data);
     } catch (error) {
         if (error.code === 'ENOENT') {
             // Si el archivo no existe, no es un error, es el estado inicial.
             return []; // Devuelve un array vacío si el archivo no existe
-        }
-        // Si es un error de JSON, lo registramos con más detalle.
-        if (error instanceof SyntaxError) {
-            console.error(`¡ERROR DE SINTAXIS JSON EN ${filePath}! El contenido que causa el fallo es el que se muestra arriba.`);
         }
         // Para otros errores, los relanzamos para que los maneje el catch de la ruta.
         throw error;
@@ -83,7 +72,6 @@ app.post('/api/suggestions', async (req, res) => {
             return res.status(400).send('Datos de la sugerencia incompletos.');
         }
 
-        // Filtro de contenido prohibido
         const contentToCheck = `${newSuggestion.title.toLowerCase()} ${newSuggestion.url.toLowerCase()}`;
         const isForbidden = FORBIDDEN_KEYWORDS.some(keyword => contentToCheck.includes(keyword));
 
@@ -106,7 +94,6 @@ app.post('/api/suggestions', async (req, res) => {
         contentList.push(newSuggestion);
 
         // 4. Escribir el archivo actualizado
-        // JSON.stringify(..., null, 2) formatea el JSON para que sea legible
         await fs.writeFile(CONTENT_FILE_PATH, JSON.stringify(contentList, null, 2), 'utf-8');
 
         // Responder al cliente que todo salió bien
@@ -171,34 +158,42 @@ app.post('/api/video-suggestions', async (req, res) => {
             return res.status(400).send('Faltan datos en la sugerencia del video.');
         }
 
-        const suggestions = await readJsonFile(VIDEO_SUGGESTIONS_PATH);
+        // Verificar si ya está en la playlist principal (leída desde el archivo)
         const cosmicPlaylist = await readJsonFile(COSMIC_PLAYLIST_PATH);
-
-        // Verificar si ya existe en la playlist principal o en las sugerencias
-        const isDuplicateInPlaylist = cosmicPlaylist.includes(videoId);
-        const isDuplicateInSuggestions = suggestions.some(s => s.videoId === videoId);
-
-        if (isDuplicateInPlaylist) {
+        if (cosmicPlaylist.includes(videoId)) {
             return res.status(409).send('¡Ese video ya forma parte del viaje cósmico!');
         }
-        if (isDuplicateInSuggestions) {
-            return res.status(409).send('Esa sugerencia ya fue enviada. ¡Gracias!');
+
+        // --- Lógica para enviar correo con Nodemailer y Gmail ---
+        const userEmail = process.env.EMAIL_USER;
+        const appPassword = process.env.EMAIL_PASS; // Aquí va la contraseña de aplicación
+        const recipientEmail = process.env.EMAIL_RECIPIENT;
+
+        if (!userEmail || !appPassword || !recipientEmail) {
+            console.error("Faltan las variables de entorno para enviar correos con Gmail.");
+            // No le decimos al usuario que falló, pero lo registramos en el servidor.
+            return res.status(201).json({ success: true, message: 'Sugerencia recibida (modo de desarrollo).' });
         }
 
-        // Añadir la nueva sugerencia
-        const newSuggestion = {
-            videoId,
-            title,
-            suggestedAt: new Date().toISOString()
-        };
-        suggestions.push(newSuggestion);
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: userEmail,
+                pass: appPassword,
+            },
+        });
 
-        await fs.writeFile(VIDEO_SUGGESTIONS_PATH, JSON.stringify(suggestions, null, 2), 'utf-8');
+        await transporter.sendMail({
+            from: `"Sugerencias Cósmicas 👽" <${userEmail}>`,
+            to: recipientEmail,
+            subject: 'Nueva sugerencia de video para la volá!',
+            html: `<p>¡Hola, curador cósmico!</p><p>Alguien ha sugerido un nuevo video para el viaje:</p><ul><li><strong>Título:</strong> ${title}</li><li><strong>URL:</strong> https://www.youtube.com/watch?v=${videoId}</li></ul><p>Si te gusta, añade el ID <strong>${videoId}</strong> a tu archivo <code>cosmicPlaylist.json</code>.</p><p>¡Que siga la volá!</p>`
+        });
 
         res.status(201).json({ success: true, message: 'Sugerencia recibida.' });
     } catch (error) {
-        console.error('Error al guardar la sugerencia de video:', error);
-        res.status(500).send('Error interno del servidor al guardar la sugerencia.');
+        console.error('Error al enviar la sugerencia de video por correo:', error);
+        res.status(500).send('Error interno del servidor al procesar la sugerencia.');
     }
 });
 
