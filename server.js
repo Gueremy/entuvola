@@ -32,13 +32,24 @@ app.use(express.static(__dirname));
 
 // Lee el contenido del archivo JSON. Si no existe, devuelve una lista vacía.
 async function readJsonFile(filePath) {
+    let data;
     try {
-        const data = await fs.readFile(filePath, 'utf-8');
+        data = await fs.readFile(filePath, 'utf-8');
+        // --- DETECTOR ACTIVADO ---
+        // Imprimimos el contenido crudo del archivo en los logs para diagnóstico.
+        console.log(`--- [DETECTOR] Leyendo contenido crudo de: ${path.basename(filePath)} ---`);
+        console.log(data);
+        console.log(`--- [DETECTOR] Fin del contenido de: ${path.basename(filePath)} ---`);
+
         return JSON.parse(data);
     } catch (error) {
         if (error.code === 'ENOENT') {
             // Si el archivo no existe, no es un error, es el estado inicial.
             return []; // Devuelve un array vacío si el archivo no existe
+        }
+        // Si es un error de JSON, lo registramos con más detalle.
+        if (error instanceof SyntaxError) {
+            console.error(`¡ERROR DE SINTAXIS JSON EN ${filePath}! El contenido que causa el fallo es el que se muestra arriba.`);
         }
         // Para otros errores, los relanzamos para que los maneje el catch de la ruta.
         throw error;
