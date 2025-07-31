@@ -135,6 +135,7 @@
 
         let visualPlayer;
         let musicPlayer;
+        let isMusicStarted = false; // Flag para saber si la música ya comenzó
 
         async function onYouTubeIframeAPIReady() {
             // 1. Cargar las playlists desde el servidor
@@ -210,8 +211,8 @@
         }
 
         function onMusicPlayerReady(event) {
-            event.target.setVolume(40); // Volumen de la música al 40%
-            event.target.playVideo();
+            event.target.setVolume(40);
+            // NO reproducimos automáticamente. Esperamos la interacción del usuario.
         }
 
         // Maneja el fin de una canción para reproducir la siguiente
@@ -220,6 +221,7 @@
                 updateMusicTitle();
             }
             if (event.data === YT.PlayerState.ENDED) {
+                isMusicStarted = false; // Permitir que la próxima canción inicie con la siguiente interacción
                 loadNextMusic();
             }
         }
@@ -242,6 +244,14 @@
             }
         }
 
+        // Función para iniciar la música si aún no ha comenzado
+        function startMusicIfNeeded() {
+            if (musicPlayer && !isMusicStarted) {
+                musicPlayer.playVideo();
+                isMusicStarted = true;
+            }
+        }
+
         // --- Lógica para botones de control ---
         const addVideoButton = document.getElementById('add-video-button');
         const skipVideoButton = document.getElementById('skip-video-button');
@@ -249,15 +259,20 @@
         const musicTitleElement = document.getElementById('music-title');
 
         skipVideoButton.addEventListener('click', () => {
+            startMusicIfNeeded();
             if (visualPlayer && typeof visualPlayer.loadVideoById === 'function') {
                 loadRandomVideo(visualPlayer);
             }
         });
 
-        skipMusicButton.addEventListener('click', loadNextMusic);
+        skipMusicButton.addEventListener('click', () => {
+            startMusicIfNeeded();
+            loadNextMusic();
+        });
 
         // --- Lógica para sugerir videos ---
         addVideoButton.addEventListener('click', async () => {
+            startMusicIfNeeded();
             const videoUrl = prompt('Pega la URL del video de YouTube que quieres sugerir para el viaje:');
             if (!videoUrl) return; // El usuario canceló
 
