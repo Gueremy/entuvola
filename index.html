@@ -510,16 +510,14 @@
                     return; // Detiene la ejecución
                 }
 
-                const createdSuggestion = await response.json();
+                const successData = await response.json(); // Obtiene el objeto { message: "..." }
 
-                // Actualiza la lista en el front para que la nueva sugerencia esté disponible inmediatamente
-                allContent.push(createdSuggestion);
-                renderRanking(allContent); // Actualizar el ranking con el nuevo item
-
-                // Mostrar mensaje de éxito y limpiarlo después de 3 segundos
-                successMessageElement.textContent = 'Gracias por tu sugerencia cósmica ✨';
+                // Mostrar mensaje de éxito del servidor y limpiarlo después de un tiempo
+                successMessageElement.textContent = successData.message;
                 successMessageElement.classList.add('visible');
-                setTimeout(() => successMessageElement.classList.remove('visible'), 3000);
+                setTimeout(() => {
+                    successMessageElement.classList.remove('visible');
+                }, 4000); // 4 segundos para que se pueda leer bien
                 suggestionForm.reset();
             } catch (error) {
                 console.error('Error al enviar la sugerencia:', error);

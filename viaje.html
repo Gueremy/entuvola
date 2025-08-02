@@ -61,9 +61,25 @@
             top: 1.5rem;
             right: 1.5rem;
             display: flex;
-            flex-direction: column;
-            gap: 0.75rem; /* Espacio entre botones */
+            flex-direction: column; /* Apila el botón principal y el contenedor de opciones */
+            align-items: flex-end; /* Alinea los botones a la derecha */
             z-index: 10;
+        }
+
+        /* Contenedor para las opciones de control, oculto por defecto */
+        .control-options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out;
+        }
+
+        /* Clase para mostrar las opciones */
+        .control-options.visible {
+            max-height: 200px; /* Altura suficiente para mostrar los 3 botones */
+            margin-top: 0.75rem; /* Espacio entre el botón principal y las opciones */
         }
 
         /* Estilo común para los botones de control */
@@ -114,9 +130,12 @@
     <a href="index.html" class="back-button">Volver a la realidad 🌀</a>
 
     <div class="controls-right">
-        <button id="add-video-button" class="control-button">Sugerir Video ➕</button>
-        <button id="skip-video-button" class="control-button">Saltar Visual ⏭️</button>
-        <button id="skip-music-button" class="control-button">Cambiar Música 🎶</button>
+        <button id="toggle-controls-button" class="control-button">Controles ⚙️</button>
+        <div id="control-options" class="control-options">
+            <button id="add-video-button" class="control-button">Sugerir Video ➕</button>
+            <button id="skip-video-button" class="control-button">Saltar Visual ⏭️</button>
+            <button id="skip-music-button" class="control-button">Cambiar Música 🎶</button>
+        </div>
     </div>
 
     <div class="music-info">
@@ -257,6 +276,16 @@
         const skipVideoButton = document.getElementById('skip-video-button');
         const skipMusicButton = document.getElementById('skip-music-button');
         const musicTitleElement = document.getElementById('music-title');
+
+        // Lógica para el botón de Controles
+        const toggleControlsButton = document.getElementById('toggle-controls-button');
+        const controlOptions = document.getElementById('control-options');
+
+        if (toggleControlsButton && controlOptions) {
+            toggleControlsButton.addEventListener('click', () => {
+                controlOptions.classList.toggle('visible');
+            });
+        }
 
         skipVideoButton.addEventListener('click', () => {
             startMusicIfNeeded();
