@@ -167,19 +167,6 @@ app.post('/api/video-suggestions', async (req, res) => {
     }
 });
 
-// Endpoint para la playlist del viaje cósmico
-app.get('/api/cosmic-playlist', async (req, res) => {
-    const allContent = await readContent();
-    const videoIds = allContent
-        .filter(item => item.type === 'video' && (item.url.includes('youtube.com') || item.url.includes('youtu.be')))
-        .map(item => {
-            const match = item.url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-            return match ? match[1] : null;
-        })
-        .filter(id => id !== null);
-    res.json(videoIds);
-});
-
 app.listen(PORT, () => {
     console.log(`Servidor cósmico escuchando en http://localhost:${PORT}`);
     console.log('Para iniciar localmente, asegúrate de tener tu .env y ejecuta: npm start');

@@ -159,7 +159,7 @@
         async function onYouTubeIframeAPIReady() {
             // 1. Cargar las playlists desde el servidor
             try {
-                const cosmicResponse = await fetch('/api/cosmic-playlist');
+                const cosmicResponse = await fetch('cosmicPlaylist.json');
                 if (!cosmicResponse.ok) throw new Error('No se pudo cargar la playlist cósmica.');
                 cosmicTripPlaylist = await cosmicResponse.json();
 
