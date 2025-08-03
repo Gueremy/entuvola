@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>¿Qué veo volao?</title>
+    <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+    <script async src="https://www.tiktok.com/embed.js"></script>
     <style>
         /* Para una fuente más moderna */
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap');
@@ -135,6 +137,60 @@
 
         .vote-button:hover {
             transform: translateY(-3px);
+            border-color: var(--accent-color);
+        }
+
+        /* Estilos para el reproductor de contenido embebido */
+        .content-player-container {
+            display: none; /* Oculto por defecto */
+            margin-top: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .content-player-container.visible {
+            display: block;
+        }
+
+        .player-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* Aspect ratio 16:9 */
+            height: 0;
+            overflow: hidden;
+            max-width: 100%;
+            background: #000;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(46, 125, 50, 0.3);
+        }
+
+        .player-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        .player-controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        /* Reutilizamos el estilo de los botones de votación */
+        .player-control-button {
+            background: var(--input-bg);
+            color: var(--text-color);
+            border: 2px solid #444;
+            padding: 10px 15px;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 10px;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .player-control-button:hover {
             border-color: var(--accent-color);
         }
 
@@ -278,6 +334,16 @@
                 <button class="vote-button" data-vote="meh">😐 Meh</button>
                 <button class="vote-button" data-vote="poop">💩 Una basura</button>
             </div>
+
+            <!-- Contenedor para el video embebido -->
+            <div id="content-player-container" class="content-player-container">
+                <div id="player-wrapper" class="player-wrapper"></div>
+                <div class="player-controls">
+                    <button id="close-player-button" class="player-control-button">Cerrar ❌</button>
+                    <button id="next-content-button" class="player-control-button">Siguiente ⏭️</button>
+                </div>
+            </div>
+
             <a href="viaje.html" class="main-button" style="margin-top: 1rem; background-color: #1B5E20; display: inline-block; text-decoration: none;">Iniciar Viaje Cósmico 🚀</a>
         </section>
 
@@ -323,6 +389,11 @@
         const successMessageElement = document.getElementById('success-message');
         const voteSection = document.getElementById('vote-section');
         const rankingList = document.getElementById('ranking-list');
+        // Nuevos elementos para el reproductor embebido
+        const playerContainer = document.getElementById('content-player-container');
+        const playerWrapper = document.getElementById('player-wrapper');
+        const closePlayerButton = document.getElementById('close-player-button');
+        const nextContentButton = document.getElementById('next-content-button');
 
         // Variable para guardar todo el contenido
         let allContent = [];
@@ -398,31 +469,72 @@
             });
         }
 
-        // Lógica para el botón aleatorio
-        randomButton.addEventListener('click', () => {
+        // Función principal para mostrar contenido aleatorio
+        async function showRandomContent() {
             if (!allContent || allContent.length === 0) {
                 selectedTitleElement.textContent = "No hay contenido para mostrar.";
                 return;
             }
+            // Ocultar el reproductor por si estaba abierto y limpiarlo
+            playerContainer.classList.remove('visible');
+            playerWrapper.innerHTML = '';
+        
             const randomIndex = Math.floor(Math.random() * allContent.length);
             const randomContent = allContent[randomIndex];
-
+        
             if (randomContent) {
                 currentSelection = randomContent; // Guardar la selección actual
-                selectedTitleElement.textContent = currentSelection.title;
-
+                selectedTitleElement.textContent = escapeHTML(currentSelection.title);
+        
                 // Comprobar si ya se ha votado por este item
                 const votedItems = JSON.parse(localStorage.getItem('votedItems') || '[]');
                 if (votedItems.includes(currentSelection.url)) {
-                    voteSection.classList.remove('visible'); // Mantener oculto si ya votó
+                    voteSection.classList.remove('visible');
                 } else {
-                    voteSection.classList.add('visible'); // Mostrar si no ha votado
+                    voteSection.classList.add('visible');
                 }
-
-                voteSection.classList.add('visible'); // Mostrar botones de votación
-                window.open(randomContent.url, '_blank');
+        
+                // --- Nueva lógica de Embed ---
+                try {
+                    const embedUrl = `${API_URL}/embed?url=${encodeURIComponent(currentSelection.url)}`;
+                    const response = await fetch(embedUrl);
+        
+                    if (!response.ok) {
+                        // Si el servidor dice que no puede incrustarlo, abrir en una nueva pestaña
+                        throw new Error('Unsupported platform or invalid URL');
+                    }
+        
+                    const data = await response.json();
+                    if (data.html) {
+                        // Es incrustable, mostrarlo en el reproductor
+                        playerWrapper.innerHTML = data.html;
+                        playerContainer.classList.add('visible');
+        
+                        // Volver a ejecutar los scripts de las plataformas si es necesario
+                        if (typeof twttr !== 'undefined' && twttr.widgets) {
+                            twttr.widgets.load(playerWrapper);
+                        }
+                    } else {
+                        throw new Error('No embed HTML returned from server');
+                    }
+                } catch (error) {
+                    // Fallback para contenido no incrustable o errores
+                    console.warn(`No se pudo incrustar ${currentSelection.url}. Abriendo en nueva pestaña. Razón: ${error.message}`);
+                    selectedTitleElement.innerHTML = escapeHTML(currentSelection.title) + ' <small style="opacity: 0.7;">(abriendo en nueva pestaña...)</small>';
+                    window.open(currentSelection.url, '_blank');
+                }
             }
+        }
+
+        // Asignar eventos a los botones
+        randomButton.addEventListener('click', showRandomContent);
+
+        closePlayerButton.addEventListener('click', () => {
+            playerContainer.classList.remove('visible');
+            playerWrapper.innerHTML = ''; // Detiene el video al quitar el iframe
         });
+
+        nextContentButton.addEventListener('click', showRandomContent);
 
         // Lógica para los botones de votación (usando delegación de eventos)
         voteSection.addEventListener('click', async (event) => {

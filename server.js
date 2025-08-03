@@ -167,6 +167,62 @@ app.post('/api/video-suggestions', async (req, res) => {
     }
 });
 
+// Helper para extraer el ID de una URL de YouTube
+function getYouTubeID(url) {
+    const regex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+}
+
+// Endpoint para obtener el código de incrustación para varias plataformas
+app.get('/api/embed', async (req, res) => {
+    const { url } = req.query;
+    if (!url) {
+        return res.status(400).json({ error: 'URL parameter is required.' });
+    }
+
+    try {
+        const parsedUrl = new URL(url);
+        const hostname = parsedUrl.hostname.replace('www.', '');
+
+        // YouTube
+        if (hostname === 'youtube.com' || hostname === 'youtu.be') {
+            const videoId = getYouTubeID(url);
+            if (videoId) {
+                const embedHtml = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&showinfo=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+                return res.json({ html: embedHtml });
+            }
+        }
+
+        // TikTok
+        if (hostname === 'tiktok.com') {
+            const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
+            const oembedResponse = await fetch(oembedUrl);
+            if (!oembedResponse.ok) throw new Error('TikTok oEmbed failed');
+            const data = await oembedResponse.json();
+            return res.json({ html: data.html });
+        }
+
+        // Twitter / X
+        if (hostname === 'twitter.com' || hostname === 'x.com') {
+            // Usamos omit_script=true porque cargaremos widgets.js en el <head>
+            const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(url)}&maxwidth=550&omit_script=true&dnt=true`;
+            const oembedResponse = await fetch(oembedUrl);
+            if (!oembedResponse.ok) throw new Error('Twitter oEmbed failed');
+            const data = await oembedResponse.json();
+            return res.json({ html: data.html });
+        }
+
+        // Si ninguna plataforma coincide, no se puede incrustar.
+        return res.status(404).json({ error: 'Unsupported platform for embedding.' });
+
+    } catch (error) {
+        console.error(`Error getting embed code for ${url}:`, error.message);
+        // Devolvemos 404 para que el cliente sepa que debe abrir en una nueva pestaña.
+        res.status(404).json({ error: 'Failed to get embed code.' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Servidor cósmico escuchando en http://localhost:${PORT}`);
     console.log('Para iniciar localmente, asegúrate de tener tu .env y ejecuta: npm start');
